@@ -72,6 +72,12 @@ export interface FoodBank {
   acceptedItems: FoodCategory[];
   operatingHours: string;
   website?: string;
+  country: string;
+  city: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
 }
 
 export interface NotificationSettings {

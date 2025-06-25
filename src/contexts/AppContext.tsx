@@ -16,6 +16,7 @@ interface AppContextType {
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
   getExpiringItems: (days: number) => FoodItem[];
   getRecipeRecommendations: () => Recipe[];
+  searchFoodBanks: (location: string) => FoodBank[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -32,16 +33,17 @@ const sampleRecipes: Recipe[] = [
   {
     id: '1',
     name: 'Fresh Garden Salad',
-    description: 'A refreshing salad with mixed vegetables',
-    ingredients: ['lettuce', 'tomatoes', 'cucumbers', 'carrots', 'onions'],
+    description: 'A refreshing salad with mixed vegetables and herbs',
+    ingredients: ['lettuce', 'tomatoes', 'cucumbers', 'carrots', 'onions', 'olive oil', 'lemon'],
     instructions: [
-      'Wash all vegetables thoroughly',
-      'Chop lettuce into bite-sized pieces',
-      'Slice tomatoes and cucumbers',
-      'Grate carrots',
-      'Thinly slice onions',
-      'Mix all ingredients in a large bowl',
-      'Add your favorite dressing and toss'
+      'Wash all vegetables thoroughly under cold running water',
+      'Chop lettuce into bite-sized pieces and place in a large bowl',
+      'Slice tomatoes and cucumbers into rounds',
+      'Grate carrots using a coarse grater',
+      'Thinly slice onions for a mild flavor',
+      'Combine all vegetables in the bowl',
+      'Drizzle with olive oil and fresh lemon juice',
+      'Toss gently and season with salt and pepper to taste'
     ],
     prepTime: 15,
     cookTime: 0,
@@ -55,16 +57,17 @@ const sampleRecipes: Recipe[] = [
     id: '2',
     name: 'Vegetable Stir Fry',
     description: 'Quick and healthy stir fry with seasonal vegetables',
-    ingredients: ['broccoli', 'carrots', 'bell peppers', 'onions', 'garlic', 'soy sauce'],
+    ingredients: ['broccoli', 'carrots', 'bell peppers', 'onions', 'garlic', 'soy sauce', 'ginger', 'sesame oil'],
     instructions: [
-      'Heat oil in a large pan or wok',
-      'Add minced garlic and cook for 30 seconds',
-      'Add harder vegetables first (carrots, broccoli)',
-      'Stir fry for 3-4 minutes',
-      'Add softer vegetables (peppers, onions)',
-      'Cook for another 2-3 minutes',
+      'Heat sesame oil in a large wok or pan over high heat',
+      'Add minced garlic and ginger, cook for 30 seconds until fragrant',
+      'Add harder vegetables first (carrots, broccoli stems)',
+      'Stir fry for 3-4 minutes until slightly tender',
+      'Add softer vegetables (bell peppers, broccoli florets, onions)',
+      'Continue cooking for another 2-3 minutes',
       'Add soy sauce and toss to combine',
-      'Serve over rice or noodles'
+      'Cook for 1 more minute until vegetables are crisp-tender',
+      'Serve immediately over rice or noodles'
     ],
     prepTime: 10,
     cookTime: 10,
@@ -77,15 +80,18 @@ const sampleRecipes: Recipe[] = [
   {
     id: '3',
     name: 'Fruit Smoothie Bowl',
-    description: 'Nutritious breakfast bowl with fresh fruits',
-    ingredients: ['bananas', 'berries', 'yogurt', 'honey', 'granola', 'nuts'],
+    description: 'Nutritious breakfast bowl with fresh fruits and toppings',
+    ingredients: ['bananas', 'berries', 'yogurt', 'honey', 'granola', 'nuts', 'chia seeds'],
     instructions: [
-      'Blend frozen bananas with yogurt until smooth',
-      'Pour into a bowl',
-      'Top with fresh berries',
-      'Drizzle with honey',
-      'Sprinkle granola and nuts on top',
-      'Serve immediately'
+      'Freeze bananas overnight for best texture',
+      'Blend frozen bananas with yogurt until smooth and creamy',
+      'Add a splash of milk if needed for consistency',
+      'Pour smoothie mixture into a bowl',
+      'Arrange fresh berries on top in rows',
+      'Drizzle with honey in decorative patterns',
+      'Sprinkle granola, nuts, and chia seeds',
+      'Add any additional toppings as desired',
+      'Serve immediately with a spoon'
     ],
     prepTime: 10,
     cookTime: 0,
@@ -94,29 +100,200 @@ const sampleRecipes: Recipe[] = [
     cuisine: 'American',
     dietaryRestrictions: ['vegetarian', 'gluten-free'],
     image: 'https://images.pexels.com/photos/1640774/pexels-photo-1640774.jpeg'
+  },
+  {
+    id: '4',
+    name: 'Banana Bread',
+    description: 'Moist and delicious banana bread perfect for overripe bananas',
+    ingredients: ['bananas', 'flour', 'sugar', 'eggs', 'butter', 'baking soda', 'vanilla', 'salt'],
+    instructions: [
+      'Preheat oven to 350°F (175°C)',
+      'Mash overripe bananas in a large bowl',
+      'Mix in melted butter, sugar, egg, and vanilla',
+      'Combine flour, baking soda, and salt in separate bowl',
+      'Gradually add dry ingredients to wet ingredients',
+      'Mix until just combined, do not overmix',
+      'Pour into greased loaf pan',
+      'Bake for 60-65 minutes until golden brown',
+      'Cool in pan for 10 minutes before removing'
+    ],
+    prepTime: 15,
+    cookTime: 65,
+    servings: 8,
+    category: 'snack',
+    cuisine: 'American',
+    dietaryRestrictions: ['vegetarian'],
+    image: 'https://images.pexels.com/photos/830894/pexels-photo-830894.jpeg'
   }
 ];
 
-const sampleFoodBanks: FoodBank[] = [
+// Comprehensive global food bank database
+const globalFoodBanks: FoodBank[] = [
+  // United States
   {
     id: '1',
-    name: 'Community Food Bank',
-    address: '123 Main St, City, State 12345',
-    phone: '(555) 123-4567',
-    email: 'contact@communityfoodbank.org',
-    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains'],
-    operatingHours: 'Mon-Fri: 9AM-5PM, Sat: 10AM-2PM',
-    website: 'https://communityfoodbank.org'
+    name: 'Feeding America - Central Food Bank',
+    address: '123 Main St, New York, NY 10001, USA',
+    phone: '+1 (555) 123-4567',
+    email: 'contact@feedingamerica-central.org',
+    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains', 'dairy'],
+    operatingHours: 'Mon-Fri: 8AM-6PM, Sat: 9AM-3PM',
+    website: 'https://feedingamerica.org',
+    country: 'United States',
+    city: 'New York',
+    coordinates: { lat: 40.7128, lng: -74.0060 }
   },
   {
     id: '2',
-    name: 'Local Harvest Pantry',
-    address: '456 Oak Ave, City, State 12345',
-    phone: '(555) 987-6543',
-    email: 'info@localharvestpantry.org',
-    acceptedItems: ['vegetables', 'fruits', 'dairy', 'meats'],
-    operatingHours: 'Tue-Thu: 10AM-6PM, Sat: 9AM-1PM',
-    website: 'https://localharvestpantry.org'
+    name: 'Los Angeles Regional Food Bank',
+    address: '1734 E 41st St, Los Angeles, CA 90058, USA',
+    phone: '+1 (323) 234-3030',
+    email: 'info@lafoodbank.org',
+    acceptedItems: ['vegetables', 'fruits', 'dairy', 'meats', 'canned'],
+    operatingHours: 'Mon-Thu: 7AM-4PM, Fri: 7AM-3PM',
+    website: 'https://lafoodbank.org',
+    country: 'United States',
+    city: 'Los Angeles',
+    coordinates: { lat: 34.0522, lng: -118.2437 }
+  },
+  // United Kingdom
+  {
+    id: '3',
+    name: 'The Trussell Trust - London',
+    address: '52 Camberwell Church St, London SE5 8QZ, UK',
+    phone: '+44 20 7394 5200',
+    email: 'london@trusselltrust.org',
+    acceptedItems: ['canned', 'grains', 'snacks', 'beverages'],
+    operatingHours: 'Mon-Fri: 9AM-5PM, Sat: 10AM-2PM',
+    website: 'https://trusselltrust.org',
+    country: 'United Kingdom',
+    city: 'London',
+    coordinates: { lat: 51.5074, lng: -0.1278 }
+  },
+  {
+    id: '4',
+    name: 'FareShare Manchester',
+    address: 'Unit 9, Guinness Rd, Manchester M17 1SD, UK',
+    phone: '+44 161 888 1003',
+    email: 'manchester@fareshare.org.uk',
+    acceptedItems: ['vegetables', 'fruits', 'dairy', 'meats', 'frozen'],
+    operatingHours: 'Mon-Fri: 8AM-4PM',
+    website: 'https://fareshare.org.uk',
+    country: 'United Kingdom',
+    city: 'Manchester',
+    coordinates: { lat: 53.4808, lng: -2.2426 }
+  },
+  // Canada
+  {
+    id: '5',
+    name: 'Food Banks Canada - Toronto',
+    address: '5025 Orbitor Dr, Mississauga, ON L4W 4Y5, Canada',
+    phone: '+1 (905) 602-5234',
+    email: 'toronto@foodbankscanada.ca',
+    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains', 'dairy'],
+    operatingHours: 'Mon-Fri: 9AM-5PM, Sat: 10AM-2PM',
+    website: 'https://foodbankscanada.ca',
+    country: 'Canada',
+    city: 'Toronto',
+    coordinates: { lat: 43.6532, lng: -79.3832 }
+  },
+  // Australia
+  {
+    id: '6',
+    name: 'Foodbank Australia - Sydney',
+    address: '50 Owen St, Glendenning NSW 2761, Australia',
+    phone: '+61 2 9756 3099',
+    email: 'sydney@foodbank.org.au',
+    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains', 'snacks'],
+    operatingHours: 'Mon-Fri: 8AM-4PM',
+    website: 'https://foodbank.org.au',
+    country: 'Australia',
+    city: 'Sydney',
+    coordinates: { lat: -33.8688, lng: 151.2093 }
+  },
+  // Germany
+  {
+    id: '7',
+    name: 'Berliner Tafel e.V.',
+    address: 'Beusselstraße 44 N-Q, 10553 Berlin, Germany',
+    phone: '+49 30 68815200',
+    email: 'info@berliner-tafel.de',
+    acceptedItems: ['vegetables', 'fruits', 'dairy', 'meats', 'canned'],
+    operatingHours: 'Mon-Fri: 8AM-6PM, Sat: 9AM-1PM',
+    website: 'https://berliner-tafel.de',
+    country: 'Germany',
+    city: 'Berlin',
+    coordinates: { lat: 52.5200, lng: 13.4050 }
+  },
+  // France
+  {
+    id: '8',
+    name: 'Banques Alimentaires - Paris',
+    address: '21 Rue de Stalingrad, 92000 Nanterre, France',
+    phone: '+33 1 47 24 30 30',
+    email: 'paris@banquealimentaire.org',
+    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains', 'dairy'],
+    operatingHours: 'Lun-Ven: 9h-17h, Sam: 9h-13h',
+    website: 'https://banquealimentaire.org',
+    country: 'France',
+    city: 'Paris',
+    coordinates: { lat: 48.8566, lng: 2.3522 }
+  },
+  // Japan
+  {
+    id: '9',
+    name: 'Second Harvest Japan - Tokyo',
+    address: '2-2-12 Osaki, Shinagawa-ku, Tokyo 141-0032, Japan',
+    phone: '+81 3-5728-3373',
+    email: 'info@2hj.org',
+    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains'],
+    operatingHours: 'Mon-Fri: 9AM-6PM',
+    website: 'https://2hj.org',
+    country: 'Japan',
+    city: 'Tokyo',
+    coordinates: { lat: 35.6762, lng: 139.6503 }
+  },
+  // Brazil
+  {
+    id: '10',
+    name: 'Banco de Alimentos - São Paulo',
+    address: 'Rua Voluntários da Pátria, 547, São Paulo, SP 02010-000, Brazil',
+    phone: '+55 11 3225-0055',
+    email: 'contato@bancodealimentos.org.br',
+    acceptedItems: ['vegetables', 'fruits', 'grains', 'canned'],
+    operatingHours: 'Seg-Sex: 8h-17h, Sáb: 8h-12h',
+    website: 'https://bancodealimentos.org.br',
+    country: 'Brazil',
+    city: 'São Paulo',
+    coordinates: { lat: -23.5505, lng: -46.6333 }
+  },
+  // India
+  {
+    id: '11',
+    name: 'Feeding India - Mumbai',
+    address: 'Andheri East, Mumbai, Maharashtra 400069, India',
+    phone: '+91 22 6789 1234',
+    email: 'mumbai@feedingindia.org',
+    acceptedItems: ['vegetables', 'fruits', 'grains', 'canned'],
+    operatingHours: 'Mon-Sat: 9AM-6PM',
+    website: 'https://feedingindia.org',
+    country: 'India',
+    city: 'Mumbai',
+    coordinates: { lat: 19.0760, lng: 72.8777 }
+  },
+  // South Africa
+  {
+    id: '12',
+    name: 'FoodForward SA - Cape Town',
+    address: '7 Voortrekker Rd, Goodwood, Cape Town, 7460, South Africa',
+    phone: '+27 21 447 8444',
+    email: 'capetown@foodforwardsa.org',
+    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains'],
+    operatingHours: 'Mon-Fri: 8AM-5PM',
+    website: 'https://foodforwardsa.org',
+    country: 'South Africa',
+    city: 'Cape Town',
+    coordinates: { lat: -33.9249, lng: 18.4241 }
   }
 ];
 
@@ -251,6 +428,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ingredient.toLowerCase().includes(available)
         )
       )
+    ).sort((a, b) => {
+      // Sort by number of matching ingredients
+      const aMatches = a.ingredients.filter(ingredient =>
+        availableIngredients.some(available =>
+          available.includes(ingredient.toLowerCase()) || 
+          ingredient.toLowerCase().includes(available)
+        )
+      ).length;
+      const bMatches = b.ingredients.filter(ingredient =>
+        availableIngredients.some(available =>
+          available.includes(ingredient.toLowerCase()) || 
+          ingredient.toLowerCase().includes(available)
+        )
+      ).length;
+      return bMatches - aMatches;
+    });
+  };
+
+  const searchFoodBanks = (location: string): FoodBank[] => {
+    if (!location.trim()) return globalFoodBanks;
+    
+    const searchTerm = location.toLowerCase();
+    return globalFoodBanks.filter(bank =>
+      bank.city.toLowerCase().includes(searchTerm) ||
+      bank.country.toLowerCase().includes(searchTerm) ||
+      bank.address.toLowerCase().includes(searchTerm) ||
+      bank.name.toLowerCase().includes(searchTerm)
     );
   };
 
@@ -259,7 +463,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       foodItems,
       recipes: sampleRecipes,
       donations,
-      foodBanks: sampleFoodBanks,
+      foodBanks: globalFoodBanks,
       notificationSettings,
       addFoodItem,
       updateFoodItem,
@@ -268,7 +472,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addDonation,
       updateNotificationSettings,
       getExpiringItems,
-      getRecipeRecommendations
+      getRecipeRecommendations,
+      searchFoodBanks
     }}>
       {children}
     </AppContext.Provider>
