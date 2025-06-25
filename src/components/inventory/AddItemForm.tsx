@@ -1,0 +1,231 @@
+import React, { useState } from 'react';
+import { X, Calendar, Package, MapPin, Tag, DollarSign } from 'lucide-react';
+import { useApp } from '../../contexts/AppContext';
+import { FoodCategory, StorageLocation } from '../../types';
+
+interface AddItemFormProps {
+  onClose: () => void;
+}
+
+export const AddItemForm: React.FC<AddItemFormProps> = ({ onClose }) => {
+  const { addFoodItem } = useApp();
+  const [formData, setFormData] = useState({
+    name: '',
+    category: 'other' as FoodCategory,
+    quantity: 1,
+    unit: 'pieces',
+    purchaseDate: new Date().toISOString().split('T')[0],
+    expirationDate: '',
+    storageLocation: 'refrigerator' as StorageLocation,
+    cost: '',
+    barcode: ''
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    addFoodItem({
+      name: formData.name,
+      category: formData.category,
+      quantity: formData.quantity,
+      unit: formData.unit,
+      purchaseDate: new Date(formData.purchaseDate),
+      expirationDate: new Date(formData.expirationDate),
+      storageLocation: formData.storageLocation,
+      cost: formData.cost ? parseFloat(formData.cost) : undefined,
+      barcode: formData.barcode || undefined,
+      isConsumed: false
+    });
+    
+    onClose();
+  };
+
+  const categories: FoodCategory[] = ['vegetables', 'fruits', 'meats', 'dairy', 'grains', 'canned', 'frozen', 'snacks', 'beverages', 'other'];
+  const locations: StorageLocation[] = ['refrigerator', 'freezer', 'pantry', 'counter'];
+  const units = ['pieces', 'kg', 'g', 'l', 'ml', 'cups', 'tbsp', 'tsp', 'oz', 'lbs', 'cans', 'bottles', 'boxes', 'bags'];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Add Food Item</h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+              Item Name
+            </label>
+            <div className="relative">
+              <Package className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                id="name"
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                placeholder="e.g., Organic Bananas"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
+                Category
+              </label>
+              <div className="relative">
+                <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <select
+                  id="category"
+                  value={formData.category}
+                  onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value as FoodCategory }))}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                >
+                  {categories.map(category => (
+                    <option key={category} value={category}>
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="storageLocation" className="block text-sm font-medium text-gray-700 mb-2">
+                Storage Location
+              </label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <select
+                  id="storageLocation"
+                  value={formData.storageLocation}
+                  onChange={(e) => setFormData(prev => ({ ...prev, storageLocation: e.target.value as StorageLocation }))}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                >
+                  {locations.map(location => (
+                    <option key={location} value={location}>
+                      {location.charAt(0).toUpperCase() + location.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-2">
+                Quantity
+              </label>
+              <input
+                id="quantity"
+                type="number"
+                min="0.1"
+                step="0.1"
+                required
+                value={formData.quantity}
+                onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseFloat(e.target.value) }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="unit" className="block text-sm font-medium text-gray-700 mb-2">
+                Unit
+              </label>
+              <select
+                id="unit"
+                value={formData.unit}
+                onChange={(e) => setFormData(prev => ({ ...prev, unit: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              >
+                {units.map(unit => (
+                  <option key={unit} value={unit}>{unit}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="purchaseDate" className="block text-sm font-medium text-gray-700 mb-2">
+                Purchase Date
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  id="purchaseDate"
+                  type="date"
+                  required
+                  value={formData.purchaseDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, purchaseDate: e.target.value }))}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700 mb-2">
+                Expiration Date
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  id="expirationDate"
+                  type="date"
+                  required
+                  value={formData.expirationDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, expirationDate: e.target.value }))}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="cost" className="block text-sm font-medium text-gray-700 mb-2">
+              Cost (Optional)
+            </label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                id="cost"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.cost}
+                onChange={(e) => setFormData(prev => ({ ...prev, cost: e.target.value }))}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div className="flex space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              Add Item
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
