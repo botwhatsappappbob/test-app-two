@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { FoodItem, Recipe, Donation, FoodBank, NotificationSettings } from '../types';
 import { useAuth } from './AuthContext';
+import { foodItemsAPI, recipesAPI, donationsAPI, foodBanksAPI } from '../lib/api';
 
 interface AppContextType {
   foodItems: FoodItem[];
@@ -8,15 +9,18 @@ interface AppContextType {
   donations: Donation[];
   foodBanks: FoodBank[];
   notificationSettings: NotificationSettings;
-  addFoodItem: (item: Omit<FoodItem, 'id' | 'userId'>) => void;
-  updateFoodItem: (id: string, updates: Partial<FoodItem>) => void;
-  deleteFoodItem: (id: string) => void;
-  consumeFoodItem: (id: string, quantity: number) => void;
-  addDonation: (donation: Omit<Donation, 'id' | 'userId' | 'createdAt'>) => void;
+  isLoading: boolean;
+  error: string | null;
+  addFoodItem: (item: Omit<FoodItem, 'id' | 'userId'>) => Promise<void>;
+  updateFoodItem: (id: string, updates: Partial<FoodItem>) => Promise<void>;
+  deleteFoodItem: (id: string) => Promise<void>;
+  consumeFoodItem: (id: string, quantity: number) => Promise<void>;
+  addDonation: (donation: Omit<Donation, 'id' | 'userId' | 'createdAt'>) => Promise<void>;
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
   getExpiringItems: (days: number) => FoodItem[];
   getRecipeRecommendations: () => Recipe[];
   searchFoodBanks: (location: string) => FoodBank[];
+  refreshData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -29,379 +33,145 @@ const defaultNotificationSettings: NotificationSettings = {
   weeklyReports: false
 };
 
-const sampleRecipes: Recipe[] = [
-  {
-    id: '1',
-    name: 'Fresh Garden Salad',
-    description: 'A refreshing salad with mixed vegetables and herbs',
-    ingredients: ['lettuce', 'tomatoes', 'cucumbers', 'carrots', 'onions', 'olive oil', 'lemon'],
-    instructions: [
-      'Wash all vegetables thoroughly under cold running water',
-      'Chop lettuce into bite-sized pieces and place in a large bowl',
-      'Slice tomatoes and cucumbers into rounds',
-      'Grate carrots using a coarse grater',
-      'Thinly slice onions for a mild flavor',
-      'Combine all vegetables in the bowl',
-      'Drizzle with olive oil and fresh lemon juice',
-      'Toss gently and season with salt and pepper to taste'
-    ],
-    prepTime: 15,
-    cookTime: 0,
-    servings: 4,
-    category: 'lunch',
-    cuisine: 'Mediterranean',
-    dietaryRestrictions: ['vegetarian', 'vegan', 'gluten-free'],
-    image: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'
-  },
-  {
-    id: '2',
-    name: 'Vegetable Stir Fry',
-    description: 'Quick and healthy stir fry with seasonal vegetables',
-    ingredients: ['broccoli', 'carrots', 'bell peppers', 'onions', 'garlic', 'soy sauce', 'ginger', 'sesame oil'],
-    instructions: [
-      'Heat sesame oil in a large wok or pan over high heat',
-      'Add minced garlic and ginger, cook for 30 seconds until fragrant',
-      'Add harder vegetables first (carrots, broccoli stems)',
-      'Stir fry for 3-4 minutes until slightly tender',
-      'Add softer vegetables (bell peppers, broccoli florets, onions)',
-      'Continue cooking for another 2-3 minutes',
-      'Add soy sauce and toss to combine',
-      'Cook for 1 more minute until vegetables are crisp-tender',
-      'Serve immediately over rice or noodles'
-    ],
-    prepTime: 10,
-    cookTime: 10,
-    servings: 3,
-    category: 'dinner',
-    cuisine: 'Asian',
-    dietaryRestrictions: ['vegetarian', 'vegan'],
-    image: 'https://images.pexels.com/photos/2253643/pexels-photo-2253643.jpeg'
-  },
-  {
-    id: '3',
-    name: 'Fruit Smoothie Bowl',
-    description: 'Nutritious breakfast bowl with fresh fruits and toppings',
-    ingredients: ['bananas', 'berries', 'yogurt', 'honey', 'granola', 'nuts', 'chia seeds'],
-    instructions: [
-      'Freeze bananas overnight for best texture',
-      'Blend frozen bananas with yogurt until smooth and creamy',
-      'Add a splash of milk if needed for consistency',
-      'Pour smoothie mixture into a bowl',
-      'Arrange fresh berries on top in rows',
-      'Drizzle with honey in decorative patterns',
-      'Sprinkle granola, nuts, and chia seeds',
-      'Add any additional toppings as desired',
-      'Serve immediately with a spoon'
-    ],
-    prepTime: 10,
-    cookTime: 0,
-    servings: 1,
-    category: 'breakfast',
-    cuisine: 'American',
-    dietaryRestrictions: ['vegetarian', 'gluten-free'],
-    image: 'https://images.pexels.com/photos/1640774/pexels-photo-1640774.jpeg'
-  },
-  {
-    id: '4',
-    name: 'Banana Bread',
-    description: 'Moist and delicious banana bread perfect for overripe bananas',
-    ingredients: ['bananas', 'flour', 'sugar', 'eggs', 'butter', 'baking soda', 'vanilla', 'salt'],
-    instructions: [
-      'Preheat oven to 350°F (175°C)',
-      'Mash overripe bananas in a large bowl',
-      'Mix in melted butter, sugar, egg, and vanilla',
-      'Combine flour, baking soda, and salt in separate bowl',
-      'Gradually add dry ingredients to wet ingredients',
-      'Mix until just combined, do not overmix',
-      'Pour into greased loaf pan',
-      'Bake for 60-65 minutes until golden brown',
-      'Cool in pan for 10 minutes before removing'
-    ],
-    prepTime: 15,
-    cookTime: 65,
-    servings: 8,
-    category: 'snack',
-    cuisine: 'American',
-    dietaryRestrictions: ['vegetarian'],
-    image: 'https://images.pexels.com/photos/830894/pexels-photo-830894.jpeg'
-  }
-];
-
-// Comprehensive global food bank database
-const globalFoodBanks: FoodBank[] = [
-  // United States
-  {
-    id: '1',
-    name: 'Feeding America - Central Food Bank',
-    address: '123 Main St, New York, NY 10001, USA',
-    phone: '+1 (555) 123-4567',
-    email: 'contact@feedingamerica-central.org',
-    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains', 'dairy'],
-    operatingHours: 'Mon-Fri: 8AM-6PM, Sat: 9AM-3PM',
-    website: 'https://feedingamerica.org',
-    country: 'United States',
-    city: 'New York',
-    coordinates: { lat: 40.7128, lng: -74.0060 }
-  },
-  {
-    id: '2',
-    name: 'Los Angeles Regional Food Bank',
-    address: '1734 E 41st St, Los Angeles, CA 90058, USA',
-    phone: '+1 (323) 234-3030',
-    email: 'info@lafoodbank.org',
-    acceptedItems: ['vegetables', 'fruits', 'dairy', 'meats', 'canned'],
-    operatingHours: 'Mon-Thu: 7AM-4PM, Fri: 7AM-3PM',
-    website: 'https://lafoodbank.org',
-    country: 'United States',
-    city: 'Los Angeles',
-    coordinates: { lat: 34.0522, lng: -118.2437 }
-  },
-  // United Kingdom
-  {
-    id: '3',
-    name: 'The Trussell Trust - London',
-    address: '52 Camberwell Church St, London SE5 8QZ, UK',
-    phone: '+44 20 7394 5200',
-    email: 'london@trusselltrust.org',
-    acceptedItems: ['canned', 'grains', 'snacks', 'beverages'],
-    operatingHours: 'Mon-Fri: 9AM-5PM, Sat: 10AM-2PM',
-    website: 'https://trusselltrust.org',
-    country: 'United Kingdom',
-    city: 'London',
-    coordinates: { lat: 51.5074, lng: -0.1278 }
-  },
-  {
-    id: '4',
-    name: 'FareShare Manchester',
-    address: 'Unit 9, Guinness Rd, Manchester M17 1SD, UK',
-    phone: '+44 161 888 1003',
-    email: 'manchester@fareshare.org.uk',
-    acceptedItems: ['vegetables', 'fruits', 'dairy', 'meats', 'frozen'],
-    operatingHours: 'Mon-Fri: 8AM-4PM',
-    website: 'https://fareshare.org.uk',
-    country: 'United Kingdom',
-    city: 'Manchester',
-    coordinates: { lat: 53.4808, lng: -2.2426 }
-  },
-  // Canada
-  {
-    id: '5',
-    name: 'Food Banks Canada - Toronto',
-    address: '5025 Orbitor Dr, Mississauga, ON L4W 4Y5, Canada',
-    phone: '+1 (905) 602-5234',
-    email: 'toronto@foodbankscanada.ca',
-    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains', 'dairy'],
-    operatingHours: 'Mon-Fri: 9AM-5PM, Sat: 10AM-2PM',
-    website: 'https://foodbankscanada.ca',
-    country: 'Canada',
-    city: 'Toronto',
-    coordinates: { lat: 43.6532, lng: -79.3832 }
-  },
-  // Australia
-  {
-    id: '6',
-    name: 'Foodbank Australia - Sydney',
-    address: '50 Owen St, Glendenning NSW 2761, Australia',
-    phone: '+61 2 9756 3099',
-    email: 'sydney@foodbank.org.au',
-    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains', 'snacks'],
-    operatingHours: 'Mon-Fri: 8AM-4PM',
-    website: 'https://foodbank.org.au',
-    country: 'Australia',
-    city: 'Sydney',
-    coordinates: { lat: -33.8688, lng: 151.2093 }
-  },
-  // Germany
-  {
-    id: '7',
-    name: 'Berliner Tafel e.V.',
-    address: 'Beusselstraße 44 N-Q, 10553 Berlin, Germany',
-    phone: '+49 30 68815200',
-    email: 'info@berliner-tafel.de',
-    acceptedItems: ['vegetables', 'fruits', 'dairy', 'meats', 'canned'],
-    operatingHours: 'Mon-Fri: 8AM-6PM, Sat: 9AM-1PM',
-    website: 'https://berliner-tafel.de',
-    country: 'Germany',
-    city: 'Berlin',
-    coordinates: { lat: 52.5200, lng: 13.4050 }
-  },
-  // France
-  {
-    id: '8',
-    name: 'Banques Alimentaires - Paris',
-    address: '21 Rue de Stalingrad, 92000 Nanterre, France',
-    phone: '+33 1 47 24 30 30',
-    email: 'paris@banquealimentaire.org',
-    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains', 'dairy'],
-    operatingHours: 'Lun-Ven: 9h-17h, Sam: 9h-13h',
-    website: 'https://banquealimentaire.org',
-    country: 'France',
-    city: 'Paris',
-    coordinates: { lat: 48.8566, lng: 2.3522 }
-  },
-  // Japan
-  {
-    id: '9',
-    name: 'Second Harvest Japan - Tokyo',
-    address: '2-2-12 Osaki, Shinagawa-ku, Tokyo 141-0032, Japan',
-    phone: '+81 3-5728-3373',
-    email: 'info@2hj.org',
-    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains'],
-    operatingHours: 'Mon-Fri: 9AM-6PM',
-    website: 'https://2hj.org',
-    country: 'Japan',
-    city: 'Tokyo',
-    coordinates: { lat: 35.6762, lng: 139.6503 }
-  },
-  // Brazil
-  {
-    id: '10',
-    name: 'Banco de Alimentos - São Paulo',
-    address: 'Rua Voluntários da Pátria, 547, São Paulo, SP 02010-000, Brazil',
-    phone: '+55 11 3225-0055',
-    email: 'contato@bancodealimentos.org.br',
-    acceptedItems: ['vegetables', 'fruits', 'grains', 'canned'],
-    operatingHours: 'Seg-Sex: 8h-17h, Sáb: 8h-12h',
-    website: 'https://bancodealimentos.org.br',
-    country: 'Brazil',
-    city: 'São Paulo',
-    coordinates: { lat: -23.5505, lng: -46.6333 }
-  },
-  // India
-  {
-    id: '11',
-    name: 'Feeding India - Mumbai',
-    address: 'Andheri East, Mumbai, Maharashtra 400069, India',
-    phone: '+91 22 6789 1234',
-    email: 'mumbai@feedingindia.org',
-    acceptedItems: ['vegetables', 'fruits', 'grains', 'canned'],
-    operatingHours: 'Mon-Sat: 9AM-6PM',
-    website: 'https://feedingindia.org',
-    country: 'India',
-    city: 'Mumbai',
-    coordinates: { lat: 19.0760, lng: 72.8777 }
-  },
-  // South Africa
-  {
-    id: '12',
-    name: 'FoodForward SA - Cape Town',
-    address: '7 Voortrekker Rd, Goodwood, Cape Town, 7460, South Africa',
-    phone: '+27 21 447 8444',
-    email: 'capetown@foodforwardsa.org',
-    acceptedItems: ['vegetables', 'fruits', 'canned', 'grains'],
-    operatingHours: 'Mon-Fri: 8AM-5PM',
-    website: 'https://foodforwardsa.org',
-    country: 'South Africa',
-    city: 'Cape Town',
-    coordinates: { lat: -33.9249, lng: 18.4241 }
-  }
-];
-
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [donations, setDonations] = useState<Donation[]>([]);
+  const [foodBanks, setFoodBanks] = useState<FoodBank[]>([]);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(defaultNotificationSettings);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // Load data when user is authenticated
   useEffect(() => {
-    if (user) {
-      const savedItems = localStorage.getItem(`foodsaver_items_${user.id}`);
-      if (savedItems) {
-        setFoodItems(JSON.parse(savedItems).map((item: any) => ({
-          ...item,
-          purchaseDate: new Date(item.purchaseDate),
-          expirationDate: new Date(item.expirationDate),
-          consumedDate: item.consumedDate ? new Date(item.consumedDate) : undefined
-        })));
-      }
-
-      const savedDonations = localStorage.getItem(`foodsaver_donations_${user.id}`);
-      if (savedDonations) {
-        setDonations(JSON.parse(savedDonations).map((donation: any) => ({
-          ...donation,
-          pickupDate: new Date(donation.pickupDate),
-          createdAt: new Date(donation.createdAt)
-        })));
-      }
-
-      const savedSettings = localStorage.getItem(`foodsaver_settings_${user.id}`);
-      if (savedSettings) {
-        setNotificationSettings(JSON.parse(savedSettings));
-      }
+    if (isAuthenticated && user) {
+      refreshData();
+    } else {
+      // Clear data when user logs out
+      setFoodItems([]);
+      setDonations([]);
+      setRecipes([]);
+      setFoodBanks([]);
     }
-  }, [user]);
+  }, [isAuthenticated, user]);
 
-  const addFoodItem = (item: Omit<FoodItem, 'id' | 'userId'>) => {
-    if (!user) return;
-    
-    const newItem: FoodItem = {
-      ...item,
-      id: Date.now().toString(),
-      userId: user.id
-    };
-    
-    const updatedItems = [...foodItems, newItem];
-    setFoodItems(updatedItems);
-    localStorage.setItem(`foodsaver_items_${user.id}`, JSON.stringify(updatedItems));
+  const refreshData = async () => {
+    if (!isAuthenticated) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Load all data in parallel
+      const [
+        foodItemsResponse,
+        recipesResponse,
+        donationsResponse,
+        foodBanksResponse
+      ] = await Promise.all([
+        foodItemsAPI.getAll(),
+        recipesAPI.getAll(),
+        donationsAPI.getAll(),
+        foodBanksAPI.getAll()
+      ]);
+
+      setFoodItems(foodItemsResponse.data.map((item: any) => ({
+        ...item,
+        purchaseDate: new Date(item.purchaseDate),
+        expirationDate: new Date(item.expirationDate),
+        consumedDate: item.consumedDate ? new Date(item.consumedDate) : undefined
+      })));
+
+      setRecipes(recipesResponse.data);
+      
+      setDonations(donationsResponse.data.map((donation: any) => ({
+        ...donation,
+        pickupDate: new Date(donation.pickupDate),
+        createdAt: new Date(donation.createdAt)
+      })));
+
+      setFoodBanks(foodBanksResponse.data);
+
+    } catch (err: any) {
+      console.error('Error loading data:', err);
+      setError(err.response?.data?.error || 'Failed to load data');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const updateFoodItem = (id: string, updates: Partial<FoodItem>) => {
-    if (!user) return;
-    
-    const updatedItems = foodItems.map(item =>
-      item.id === id ? { ...item, ...updates } : item
-    );
-    setFoodItems(updatedItems);
-    localStorage.setItem(`foodsaver_items_${user.id}`, JSON.stringify(updatedItems));
+  const addFoodItem = async (item: Omit<FoodItem, 'id' | 'userId'>) => {
+    try {
+      const response = await foodItemsAPI.create(item);
+      const newItem = {
+        ...response.data.item,
+        purchaseDate: new Date(response.data.item.purchaseDate),
+        expirationDate: new Date(response.data.item.expirationDate)
+      };
+      setFoodItems(prev => [...prev, newItem]);
+    } catch (err: any) {
+      console.error('Error adding food item:', err);
+      throw new Error(err.response?.data?.error || 'Failed to add food item');
+    }
   };
 
-  const deleteFoodItem = (id: string) => {
-    if (!user) return;
-    
-    const updatedItems = foodItems.filter(item => item.id !== id);
-    setFoodItems(updatedItems);
-    localStorage.setItem(`foodsaver_items_${user.id}`, JSON.stringify(updatedItems));
+  const updateFoodItem = async (id: string, updates: Partial<FoodItem>) => {
+    try {
+      const response = await foodItemsAPI.update(id, updates);
+      const updatedItem = {
+        ...response.data.item,
+        purchaseDate: new Date(response.data.item.purchaseDate),
+        expirationDate: new Date(response.data.item.expirationDate),
+        consumedDate: response.data.item.consumedDate ? new Date(response.data.item.consumedDate) : undefined
+      };
+      setFoodItems(prev => prev.map(item => item.id === id ? updatedItem : item));
+    } catch (err: any) {
+      console.error('Error updating food item:', err);
+      throw new Error(err.response?.data?.error || 'Failed to update food item');
+    }
   };
 
-  const consumeFoodItem = (id: string, quantity: number) => {
-    if (!user) return;
-    
-    const updatedItems = foodItems.map(item => {
-      if (item.id === id) {
-        const remainingQuantity = item.quantity - quantity;
-        if (remainingQuantity <= 0) {
-          return { ...item, quantity: 0, isConsumed: true, consumedDate: new Date() };
-        } else {
-          return { ...item, quantity: remainingQuantity };
-        }
-      }
-      return item;
-    });
-    setFoodItems(updatedItems);
-    localStorage.setItem(`foodsaver_items_${user.id}`, JSON.stringify(updatedItems));
+  const deleteFoodItem = async (id: string) => {
+    try {
+      await foodItemsAPI.delete(id);
+      setFoodItems(prev => prev.filter(item => item.id !== id));
+    } catch (err: any) {
+      console.error('Error deleting food item:', err);
+      throw new Error(err.response?.data?.error || 'Failed to delete food item');
+    }
   };
 
-  const addDonation = (donation: Omit<Donation, 'id' | 'userId' | 'createdAt'>) => {
-    if (!user) return;
-    
-    const newDonation: Donation = {
-      ...donation,
-      id: Date.now().toString(),
-      userId: user.id,
-      createdAt: new Date()
-    };
-    
-    const updatedDonations = [...donations, newDonation];
-    setDonations(updatedDonations);
-    localStorage.setItem(`foodsaver_donations_${user.id}`, JSON.stringify(updatedDonations));
+  const consumeFoodItem = async (id: string, quantity: number) => {
+    try {
+      await foodItemsAPI.consume(id, quantity);
+      // Refresh the specific item or all items
+      await refreshData();
+    } catch (err: any) {
+      console.error('Error consuming food item:', err);
+      throw new Error(err.response?.data?.error || 'Failed to consume food item');
+    }
+  };
+
+  const addDonation = async (donation: Omit<Donation, 'id' | 'userId' | 'createdAt'>) => {
+    try {
+      const response = await donationsAPI.create(donation);
+      const newDonation = {
+        ...response.data.donation,
+        pickupDate: new Date(response.data.donation.pickupDate),
+        createdAt: new Date(response.data.donation.createdAt)
+      };
+      setDonations(prev => [...prev, newDonation]);
+    } catch (err: any) {
+      console.error('Error adding donation:', err);
+      throw new Error(err.response?.data?.error || 'Failed to create donation');
+    }
   };
 
   const updateNotificationSettings = (settings: Partial<NotificationSettings>) => {
-    if (!user) return;
-    
     const updatedSettings = { ...notificationSettings, ...settings };
     setNotificationSettings(updatedSettings);
-    localStorage.setItem(`foodsaver_settings_${user.id}`, JSON.stringify(updatedSettings));
+    // TODO: Save to backend
   };
 
   const getExpiringItems = (days: number): FoodItem[] => {
@@ -417,40 +187,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const getRecipeRecommendations = (): Recipe[] => {
-    const availableIngredients = foodItems
-      .filter(item => !item.isConsumed && item.quantity > 0)
-      .map(item => item.name.toLowerCase());
-    
-    return sampleRecipes.filter(recipe =>
-      recipe.ingredients.some(ingredient =>
-        availableIngredients.some(available =>
-          available.includes(ingredient.toLowerCase()) || 
-          ingredient.toLowerCase().includes(available)
-        )
-      )
-    ).sort((a, b) => {
-      // Sort by number of matching ingredients
-      const aMatches = a.ingredients.filter(ingredient =>
-        availableIngredients.some(available =>
-          available.includes(ingredient.toLowerCase()) || 
-          ingredient.toLowerCase().includes(available)
-        )
-      ).length;
-      const bMatches = b.ingredients.filter(ingredient =>
-        availableIngredients.some(available =>
-          available.includes(ingredient.toLowerCase()) || 
-          ingredient.toLowerCase().includes(available)
-        )
-      ).length;
-      return bMatches - aMatches;
-    });
+    // This will be handled by the backend API
+    return recipes.filter(recipe => recipe.matchScore && recipe.matchScore > 0)
+      .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
   };
 
   const searchFoodBanks = (location: string): FoodBank[] => {
-    if (!location.trim()) return globalFoodBanks;
+    if (!location.trim()) return foodBanks;
     
     const searchTerm = location.toLowerCase();
-    return globalFoodBanks.filter(bank =>
+    return foodBanks.filter(bank =>
       bank.city.toLowerCase().includes(searchTerm) ||
       bank.country.toLowerCase().includes(searchTerm) ||
       bank.address.toLowerCase().includes(searchTerm) ||
@@ -461,10 +207,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       foodItems,
-      recipes: sampleRecipes,
+      recipes,
       donations,
-      foodBanks: globalFoodBanks,
+      foodBanks,
       notificationSettings,
+      isLoading,
+      error,
       addFoodItem,
       updateFoodItem,
       deleteFoodItem,
@@ -473,7 +221,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateNotificationSettings,
       getExpiringItems,
       getRecipeRecommendations,
-      searchFoodBanks
+      searchFoodBanks,
+      refreshData
     }}>
       {children}
     </AppContext.Provider>

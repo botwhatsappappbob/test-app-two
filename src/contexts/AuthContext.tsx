@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
+import { authAPI } from '../lib/api';
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, name: string, userType: 'household' | 'business') => Promise<boolean>;
   logout: () => void;
-  upgradeSubscription: () => void;
+  upgradeSubscription: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -18,32 +19,41 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('foodsaver_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('foodsaver_token');
+      if (token) {
+        try {
+          const response = await authAPI.getCurrentUser();
+          setUser(response.data.user);
+        } catch (error) {
+          // Token is invalid, clear it
+          localStorage.removeItem('foodsaver_token');
+          localStorage.removeItem('foodsaver_user');
+        }
+      }
+      setIsLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Check if user exists in localStorage
-    const savedUsers = JSON.parse(localStorage.getItem('foodsaver_users') || '[]');
-    const existingUser = savedUsers.find((u: User) => u.email === email);
-    
-    if (existingUser) {
-      setUser(existingUser);
-      localStorage.setItem('foodsaver_user', JSON.stringify(existingUser));
+    try {
+      const response = await authAPI.login(email, password);
+      const { token, user: userData } = response.data;
+      
+      localStorage.setItem('foodsaver_token', token);
+      localStorage.setItem('foodsaver_user', JSON.stringify(userData));
+      setUser(userData);
       setIsLoading(false);
       return true;
+    } catch (error) {
+      console.error('Login error:', error);
+      setIsLoading(false);
+      return false;
     }
-    
-    setIsLoading(false);
-    return false;
   };
 
   const register = async (
@@ -54,46 +64,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   ): Promise<boolean> => {
     setIsLoading(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newUser: User = {
-      id: Date.now().toString(),
-      email,
-      name,
-      userType,
-      subscriptionPlan: 'free',
-      createdAt: new Date()
-    };
-    
-    // Save to localStorage
-    const savedUsers = JSON.parse(localStorage.getItem('foodsaver_users') || '[]');
-    savedUsers.push(newUser);
-    localStorage.setItem('foodsaver_users', JSON.stringify(savedUsers));
-    
-    setUser(newUser);
-    localStorage.setItem('foodsaver_user', JSON.stringify(newUser));
-    setIsLoading(false);
-    return true;
+    try {
+      const response = await authAPI.register(email, password, name, userType);
+      const { token, user: userData } = response.data;
+      
+      localStorage.setItem('foodsaver_token', token);
+      localStorage.setItem('foodsaver_user', JSON.stringify(userData));
+      setUser(userData);
+      setIsLoading(false);
+      return true;
+    } catch (error) {
+      console.error('Registration error:', error);
+      setIsLoading(false);
+      return false;
+    }
   };
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('foodsaver_token');
     localStorage.removeItem('foodsaver_user');
   };
 
-  const upgradeSubscription = () => {
-    if (user) {
-      const updatedUser = { ...user, subscriptionPlan: 'premium' as const };
-      setUser(updatedUser);
-      localStorage.setItem('foodsaver_user', JSON.stringify(updatedUser));
-      
-      // Update in users list
-      const savedUsers = JSON.parse(localStorage.getItem('foodsaver_users') || '[]');
-      const updatedUsers = savedUsers.map((u: User) => 
-        u.id === user.id ? updatedUser : u
-      );
-      localStorage.setItem('foodsaver_users', JSON.stringify(updatedUsers));
+  const upgradeSubscription = async () => {
+    try {
+      await authAPI.upgradeSubscription();
+      if (user) {
+        const updatedUser = { ...user, subscriptionPlan: 'premium' as const };
+        setUser(updatedUser);
+        localStorage.setItem('foodsaver_user', JSON.stringify(updatedUser));
+      }
+    } catch (error) {
+      console.error('Upgrade error:', error);
+      throw error;
     }
   };
 
