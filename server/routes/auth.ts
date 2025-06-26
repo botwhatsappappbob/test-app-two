@@ -1,10 +1,10 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { v4 as uuidv4 } from 'uuid';
 import { db } from '../config/database.js';
 import { validateRegistration, validateLogin } from '../middleware/validation.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { uuidv4 } from '../utils/uuid.js';
 
 const router = express.Router();
 

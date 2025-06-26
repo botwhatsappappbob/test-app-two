@@ -50,6 +50,8 @@ export interface Recipe {
   cuisine: string;
   dietaryRestrictions: string[];
   image?: string;
+  matchScore?: number;
+  matchingIngredients?: number;
 }
 
 export interface Donation {
@@ -78,6 +80,7 @@ export interface FoodBank {
     lat: number;
     lng: number;
   };
+  distance?: number;
 }
 
 export interface NotificationSettings {
@@ -86,4 +89,47 @@ export interface NotificationSettings {
   recipeRecommendations: boolean;
   donationReminders: boolean;
   weeklyReports: boolean;
+}
+
+export interface Analytics {
+  overview: {
+    totalItems: number;
+    consumedItems: number;
+    expiredItems: number;
+    wasteReduction: number;
+  };
+  financial: {
+    totalValue: number;
+    savedValue: number;
+    wastedValue: number;
+    savingsRate: number;
+  };
+  categoryBreakdown: Array<{
+    name: string;
+    value: number;
+  }>;
+  monthlyTrend: Array<{
+    month: string;
+    consumed: number;
+    saved: number;
+  }>;
+  donations: {
+    totalDonations: number;
+    completedDonations: number;
+  };
+  environmental: {
+    co2Saved: number;
+    waterSaved: number;
+    mealsDonated: number;
+  };
+}
+
+export interface ApiError {
+  error: string;
+  details?: any[];
+}
+
+export interface LoadingState {
+  isLoading: boolean;
+  error: string | null;
 }

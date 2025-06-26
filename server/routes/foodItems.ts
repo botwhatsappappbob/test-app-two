@@ -1,8 +1,8 @@
 import express from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { db } from '../config/database.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { validateFoodItem } from '../middleware/validation.js';
+import { uuidv4 } from '../utils/uuid.js';
 
 const router = express.Router();
 
@@ -16,7 +16,7 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
     `).all(req.user!.id);
 
     // Convert dates and boolean values
-    const formattedItems = foodItems.map(item => ({
+    const formattedItems = foodItems.map((item: any) => ({
       ...item,
       purchaseDate: new Date(item.purchase_date),
       expirationDate: new Date(item.expiration_date),
@@ -25,7 +25,7 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
       userId: item.user_id
     }));
 
-    res.json(formattedItems);
+    res.json({ data: formattedItems });
   } catch (error) {
     console.error('Get food items error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -210,7 +210,7 @@ router.get('/expiring/:days', authenticateToken, (req: AuthRequest, res) => {
       ORDER BY expiration_date ASC
     `).all(req.user!.id, targetDate.toISOString());
 
-    const formattedItems = expiringItems.map(item => ({
+    const formattedItems = expiringItems.map((item: any) => ({
       ...item,
       purchaseDate: new Date(item.purchase_date),
       expirationDate: new Date(item.expiration_date),
@@ -218,7 +218,7 @@ router.get('/expiring/:days', authenticateToken, (req: AuthRequest, res) => {
       userId: item.user_id
     }));
 
-    res.json(formattedItems);
+    res.json({ data: formattedItems });
   } catch (error) {
     console.error('Get expiring items error:', error);
     res.status(500).json({ error: 'Internal server error' });

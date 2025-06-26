@@ -3,6 +3,7 @@ import { X, Calendar, Package, MapPin, Tag, DollarSign, Scan } from 'lucide-reac
 import { useApp } from '../../contexts/AppContext';
 import { FoodCategory, StorageLocation } from '../../types';
 import { BarcodeScanner } from './BarcodeScanner';
+import { LoadingSpinner } from '../common/LoadingSpinner';
 
 interface AddItemFormProps {
   onClose: () => void;
@@ -11,6 +12,9 @@ interface AddItemFormProps {
 export const AddItemForm: React.FC<AddItemFormProps> = ({ onClose }) => {
   const { addFoodItem } = useApp();
   const [showScanner, setShowScanner] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  
   const [formData, setFormData] = useState({
     name: '',
     category: 'other' as FoodCategory,
@@ -24,23 +28,31 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({ onClose }) => {
     brand: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
     
-    addFoodItem({
-      name: formData.name,
-      category: formData.category,
-      quantity: formData.quantity,
-      unit: formData.unit,
-      purchaseDate: new Date(formData.purchaseDate),
-      expirationDate: new Date(formData.expirationDate),
-      storageLocation: formData.storageLocation,
-      cost: formData.cost ? parseFloat(formData.cost) : undefined,
-      barcode: formData.barcode || undefined,
-      isConsumed: false
-    });
-    
-    onClose();
+    try {
+      await addFoodItem({
+        name: formData.name,
+        category: formData.category,
+        quantity: formData.quantity,
+        unit: formData.unit,
+        purchaseDate: new Date(formData.purchaseDate),
+        expirationDate: new Date(formData.expirationDate),
+        storageLocation: formData.storageLocation,
+        cost: formData.cost ? parseFloat(formData.cost) : undefined,
+        barcode: formData.barcode || undefined,
+        isConsumed: false
+      });
+      
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to add food item');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleScanResult = (barcode: string, productData?: any) => {
@@ -73,6 +85,12 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({ onClose }) => {
           </div>
           
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                {error}
+              </div>
+            )}
+
             {/* Barcode Scanner Button */}
             <div className="bg-gradient-to-r from-blue-50 to-emerald-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center justify-between">
@@ -268,15 +286,21 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({ onClose }) => {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={isSubmitting}
+                className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                disabled={isSubmitting}
+                className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center"
               >
-                Add Item
+                {isSubmitting ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  'Add Item'
+                )}
               </button>
             </div>
           </form>

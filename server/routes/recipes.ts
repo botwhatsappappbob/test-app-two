@@ -9,15 +9,15 @@ router.get('/', optionalAuth, (req: AuthRequest, res) => {
   try {
     const recipes = db.prepare('SELECT * FROM recipes ORDER BY name ASC').all();
 
-    const formattedRecipes = recipes.map(recipe => ({
+    const formattedRecipes = recipes.map((recipe: any) => ({
       ...recipe,
       ingredients: JSON.parse(recipe.ingredients),
       instructions: JSON.parse(recipe.instructions),
       dietaryRestrictions: JSON.parse(recipe.dietary_restrictions),
-      imageUrl: recipe.image_url
+      image: recipe.image_url
     }));
 
-    res.json(formattedRecipes);
+    res.json({ data: formattedRecipes });
   } catch (error) {
     console.error('Get recipes error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -28,7 +28,7 @@ router.get('/', optionalAuth, (req: AuthRequest, res) => {
 router.get('/recommendations', optionalAuth, (req: AuthRequest, res) => {
   try {
     if (!req.user) {
-      return res.json([]); // Return empty array if not authenticated
+      return res.json({ data: [] }); // Return empty array if not authenticated
     }
 
     // Get user's available ingredients
@@ -37,21 +37,21 @@ router.get('/recommendations', optionalAuth, (req: AuthRequest, res) => {
       WHERE user_id = ? AND is_consumed = FALSE AND quantity > 0
     `).all(req.user.id);
 
-    const availableIngredients = userIngredients.map(item => item.ingredient);
+    const availableIngredients = userIngredients.map((item: any) => item.ingredient);
 
     if (availableIngredients.length === 0) {
-      return res.json([]);
+      return res.json({ data: [] });
     }
 
     // Get all recipes
     const recipes = db.prepare('SELECT * FROM recipes').all();
 
     // Filter and score recipes based on available ingredients
-    const scoredRecipes = recipes.map(recipe => {
+    const scoredRecipes = recipes.map((recipe: any) => {
       const recipeIngredients = JSON.parse(recipe.ingredients).map((ing: string) => ing.toLowerCase());
       
-      const matchingIngredients = recipeIngredients.filter(ingredient =>
-        availableIngredients.some(available =>
+      const matchingIngredients = recipeIngredients.filter((ingredient: string) =>
+        availableIngredients.some((available: string) =>
           available.includes(ingredient) || ingredient.includes(available)
         )
       );
@@ -63,15 +63,15 @@ router.get('/recommendations', optionalAuth, (req: AuthRequest, res) => {
         ingredients: JSON.parse(recipe.ingredients),
         instructions: JSON.parse(recipe.instructions),
         dietaryRestrictions: JSON.parse(recipe.dietary_restrictions),
-        imageUrl: recipe.image_url,
+        image: recipe.image_url,
         matchScore,
         matchingIngredients: matchingIngredients.length
       };
     })
-    .filter(recipe => recipe.matchingIngredients > 0)
-    .sort((a, b) => b.matchScore - a.matchScore);
+    .filter((recipe: any) => recipe.matchingIngredients > 0)
+    .sort((a: any, b: any) => b.matchScore - a.matchScore);
 
-    res.json(scoredRecipes);
+    res.json({ data: scoredRecipes });
   } catch (error) {
     console.error('Get recipe recommendations error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -93,10 +93,10 @@ router.get('/:id', (req, res) => {
       ingredients: JSON.parse(recipe.ingredients),
       instructions: JSON.parse(recipe.instructions),
       dietaryRestrictions: JSON.parse(recipe.dietary_restrictions),
-      imageUrl: recipe.image_url
+      image: recipe.image_url
     };
 
-    res.json(formattedRecipe);
+    res.json({ data: formattedRecipe });
   } catch (error) {
     console.error('Get recipe error:', error);
     res.status(500).json({ error: 'Internal server error' });

@@ -10,20 +10,20 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
     const userId = req.user!.id;
 
     // Get basic stats
-    const totalItems = db.prepare('SELECT COUNT(*) as count FROM food_items WHERE user_id = ?').get(userId);
-    const consumedItems = db.prepare('SELECT COUNT(*) as count FROM food_items WHERE user_id = ? AND is_consumed = TRUE').get(userId);
+    const totalItems = db.prepare('SELECT COUNT(*) as count FROM food_items WHERE user_id = ?').get(userId) as { count: number };
+    const consumedItems = db.prepare('SELECT COUNT(*) as count FROM food_items WHERE user_id = ? AND is_consumed = TRUE').get(userId) as { count: number };
     const expiredItems = db.prepare(`
       SELECT COUNT(*) as count FROM food_items 
       WHERE user_id = ? AND is_consumed = FALSE AND expiration_date < date('now')
-    `).get(userId);
+    `).get(userId) as { count: number };
 
     // Get financial stats
-    const totalValue = db.prepare('SELECT COALESCE(SUM(cost), 0) as total FROM food_items WHERE user_id = ?').get(userId);
-    const savedValue = db.prepare('SELECT COALESCE(SUM(cost), 0) as total FROM food_items WHERE user_id = ? AND is_consumed = TRUE').get(userId);
+    const totalValue = db.prepare('SELECT COALESCE(SUM(cost), 0) as total FROM food_items WHERE user_id = ?').get(userId) as { total: number };
+    const savedValue = db.prepare('SELECT COALESCE(SUM(cost), 0) as total FROM food_items WHERE user_id = ? AND is_consumed = TRUE').get(userId) as { total: number };
     const wastedValue = db.prepare(`
       SELECT COALESCE(SUM(cost), 0) as total FROM food_items 
       WHERE user_id = ? AND is_consumed = FALSE AND expiration_date < date('now')
-    `).get(userId);
+    `).get(userId) as { total: number };
 
     // Get category breakdown
     const categoryBreakdown = db.prepare(`
@@ -32,7 +32,7 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
       WHERE user_id = ? 
       GROUP BY category 
       ORDER BY count DESC
-    `).all(userId);
+    `).all(userId) as Array<{ category: string; count: number }>;
 
     // Get monthly consumption trend (last 6 months)
     const monthlyTrend = db.prepare(`
@@ -44,7 +44,7 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
       WHERE user_id = ? AND is_consumed = TRUE AND consumed_date >= date('now', '-6 months')
       GROUP BY strftime('%Y-%m', consumed_date)
       ORDER BY month
-    `).all(userId);
+    `).all(userId) as Array<{ month: string; consumed: number; saved: number }>;
 
     // Get donation stats
     const donationStats = db.prepare(`
@@ -53,7 +53,7 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
         COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_donations
       FROM donations 
       WHERE user_id = ?
-    `).get(userId);
+    `).get(userId) as { total_donations: number; completed_donations: number };
 
     const analytics = {
       overview: {
@@ -88,7 +88,7 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
       }
     };
 
-    res.json(analytics);
+    res.json({ data: analytics });
   } catch (error) {
     console.error('Get analytics error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -117,7 +117,7 @@ router.get('/waste-report', authenticateToken, (req: AuthRequest, res) => {
         AND expiration_date < date('now')
         AND expiration_date >= date('now', '-${days} days')
       ORDER BY expiration_date DESC
-    `).all(userId);
+    `).all(userId) as Array<any>;
 
     const summary = {
       totalWastedItems: wasteReport.length,
@@ -132,12 +132,14 @@ router.get('/waste-report', authenticateToken, (req: AuthRequest, res) => {
     };
 
     res.json({
-      summary,
-      items: wasteReport.map(item => ({
-        ...item,
-        expirationDate: new Date(item.expiration_date),
-        daysExpired: Math.round(item.days_expired)
-      }))
+      data: {
+        summary,
+        items: wasteReport.map(item => ({
+          ...item,
+          expirationDate: new Date(item.expiration_date),
+          daysExpired: Math.round(item.days_expired)
+        }))
+      }
     });
   } catch (error) {
     console.error('Get waste report error:', error);

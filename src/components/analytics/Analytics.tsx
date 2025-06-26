@@ -1,80 +1,90 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { TrendingUp, DollarSign, Leaf, Clock, Package, Award } from 'lucide-react';
-import { useApp } from '../../contexts/AppContext';
+import { TrendingUp, DollarSign, Leaf, Clock, Package, Award, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { format, subDays, isAfter } from 'date-fns';
+import { analyticsAPI } from '../../lib/api';
+import { Analytics as AnalyticsType } from '../../types';
+import { LoadingSpinner } from '../common/LoadingSpinner';
+import { ErrorMessage } from '../common/ErrorMessage';
+import { useApi } from '../../hooks/useApi';
 
 export const Analytics: React.FC = () => {
   const { user } = useAuth();
-  const { foodItems, donations } = useApp();
-
-  // Calculate stats
-  const totalItems = foodItems.length;
-  const consumedItems = foodItems.filter(item => item.isConsumed);
-  const expiredItems = foodItems.filter(item => 
-    !item.isConsumed && new Date(item.expirationDate) < new Date()
-  );
+  const [selectedPeriod, setSelectedPeriod] = useState(30);
   
-  const totalValue = foodItems.reduce((sum, item) => sum + (item.cost || 0), 0);
-  const savedValue = consumedItems.reduce((sum, item) => sum + (item.cost || 0), 0);
-  const wastedValue = expiredItems.reduce((sum, item) => sum + (item.cost || 0), 0);
+  const {
+    data: analytics,
+    isLoading,
+    error,
+    execute: fetchAnalytics
+  } = useApi<AnalyticsType>(analyticsAPI.getOverview);
 
-  const wasteReduction = totalItems > 0 ? ((consumedItems.length / totalItems) * 100) : 0;
+  const {
+    data: wasteReport,
+    isLoading: wasteLoading,
+    execute: fetchWasteReport
+  } = useApi<any>(analyticsAPI.getWasteReport);
 
-  // Category breakdown
-  const categoryData = foodItems.reduce((acc, item) => {
-    acc[item.category] = (acc[item.category] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
 
-  const categoryChartData = Object.entries(categoryData).map(([category, count]) => ({
-    name: category.charAt(0).toUpperCase() + category.slice(1),
-    value: count
-  }));
+  useEffect(() => {
+    fetchWasteReport(selectedPeriod);
+  }, [selectedPeriod]);
 
-  // Monthly consumption trend (mock data for last 6 months)
-  const monthlyData = Array.from({ length: 6 }, (_, i) => {
-    const date = subDays(new Date(), (5 - i) * 30);
-    const monthItems = consumedItems.filter(item => 
-      item.consumedDate && isAfter(item.consumedDate, subDays(date, 30)) && 
-      !isAfter(item.consumedDate, date)
+  const handleRefresh = () => {
+    fetchAnalytics();
+    fetchWasteReport(selectedPeriod);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <LoadingSpinner size="lg" text="Loading analytics..." className="py-16" />
+      </div>
     );
-    
-    return {
-      month: format(date, 'MMM'),
-      consumed: monthItems.length,
-      saved: monthItems.reduce((sum, item) => sum + (item.cost || 0), 0)
-    };
-  });
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <ErrorMessage message={error} onRetry={handleRefresh} />
+      </div>
+    );
+  }
+
+  if (!analytics) {
+    return null;
+  }
 
   const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#F97316'];
 
   const statCards = [
     {
       title: 'Total Items Managed',
-      value: totalItems,
+      value: analytics.overview.totalItems,
       icon: Package,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50'
     },
     {
       title: 'Items Consumed',
-      value: consumedItems.length,
+      value: analytics.overview.consumedItems,
       icon: TrendingUp,
       color: 'text-emerald-600',
       bgColor: 'bg-emerald-50'
     },
     {
       title: 'Money Saved',
-      value: `$${savedValue.toFixed(2)}`,
+      value: `$${analytics.financial.savedValue.toFixed(2)}`,
       icon: DollarSign,
       color: 'text-green-600',
       bgColor: 'bg-green-50'
     },
     {
       title: 'Waste Reduction',
-      value: `${wasteReduction.toFixed(1)}%`,
+      value: `${analytics.overview.wasteReduction.toFixed(1)}%`,
       icon: Leaf,
       color: 'text-teal-600',
       bgColor: 'bg-teal-50'
@@ -83,19 +93,29 @@ export const Analytics: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Analytics & Insights</h1>
           <p className="text-gray-600 mt-1">Track your food management performance and impact</p>
         </div>
-        {user?.subscriptionPlan === 'free' && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <div className="flex items-center text-amber-700 text-sm">
-              <Award className="h-4 w-4 mr-2" />
-              Upgrade to Premium for advanced analytics
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={handleRefresh}
+            className="flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </button>
+          {user?.subscriptionPlan === 'free' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <div className="flex items-center text-amber-700 text-sm">
+                <Award className="h-4 w-4 mr-2" />
+                Upgrade to Premium for advanced analytics
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -123,11 +143,11 @@ export const Analytics: React.FC = () => {
         {/* Food Category Distribution */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Food Category Distribution</h3>
-          {categoryChartData.length > 0 ? (
+          {analytics.categoryBreakdown.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={categoryChartData}
+                  data={analytics.categoryBreakdown}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -136,7 +156,7 @@ export const Analytics: React.FC = () => {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {categoryChartData.map((entry, index) => (
+                  {analytics.categoryBreakdown.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -157,7 +177,7 @@ export const Analytics: React.FC = () => {
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Consumption Trend</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={monthlyData}>
+            <LineChart data={analytics.monthlyTrend}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
@@ -186,20 +206,20 @@ export const Analytics: React.FC = () => {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Items Consumed</span>
-              <span className="font-semibold text-emerald-600">{consumedItems.length}</span>
+              <span className="font-semibold text-emerald-600">{analytics.overview.consumedItems}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Items Expired</span>
-              <span className="font-semibold text-red-600">{expiredItems.length}</span>
+              <span className="font-semibold text-red-600">{analytics.overview.expiredItems}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Donations Made</span>
-              <span className="font-semibold text-blue-600">{donations.length}</span>
+              <span className="font-semibold text-blue-600">{analytics.donations.totalDonations}</span>
             </div>
             <div className="border-t pt-4">
               <div className="flex justify-between items-center">
                 <span className="text-gray-900 font-medium">Success Rate</span>
-                <span className="font-bold text-emerald-600">{wasteReduction.toFixed(1)}%</span>
+                <span className="font-bold text-emerald-600">{analytics.overview.wasteReduction.toFixed(1)}%</span>
               </div>
             </div>
           </div>
@@ -215,22 +235,20 @@ export const Analytics: React.FC = () => {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Total Investment</span>
-              <span className="font-semibold">${totalValue.toFixed(2)}</span>
+              <span className="font-semibold">${analytics.financial.totalValue.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Value Saved</span>
-              <span className="font-semibold text-green-600">${savedValue.toFixed(2)}</span>
+              <span className="font-semibold text-green-600">${analytics.financial.savedValue.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Value Wasted</span>
-              <span className="font-semibold text-red-600">${wastedValue.toFixed(2)}</span>
+              <span className="font-semibold text-red-600">${analytics.financial.wastedValue.toFixed(2)}</span>
             </div>
             <div className="border-t pt-4">
               <div className="flex justify-between items-center">
                 <span className="text-gray-900 font-medium">Savings Rate</span>
-                <span className="font-bold text-green-600">
-                  {totalValue > 0 ? ((savedValue / totalValue) * 100).toFixed(1) : 0}%
-                </span>
+                <span className="font-bold text-green-600">{analytics.financial.savingsRate.toFixed(1)}%</span>
               </div>
             </div>
           </div>
@@ -246,15 +264,15 @@ export const Analytics: React.FC = () => {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-gray-600">CO₂ Saved (est.)</span>
-              <span className="font-semibold text-green-600">{(consumedItems.length * 0.5).toFixed(1)} kg</span>
+              <span className="font-semibold text-green-600">{analytics.environmental.co2Saved.toFixed(1)} kg</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Water Saved (est.)</span>
-              <span className="font-semibold text-blue-600">{(consumedItems.length * 2.5).toFixed(1)} L</span>
+              <span className="font-semibold text-blue-600">{analytics.environmental.waterSaved.toFixed(1)} L</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Meals Donated</span>
-              <span className="font-semibold text-orange-600">{donations.reduce((sum, d) => sum + d.foodItems.length, 0)}</span>
+              <span className="font-semibold text-orange-600">{analytics.environmental.mealsDonated}</span>
             </div>
             <div className="border-t pt-4">
               <div className="text-center">
@@ -265,6 +283,47 @@ export const Analytics: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Waste Report */}
+      {wasteReport && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Waste Report</h3>
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(parseInt(e.target.value))}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+              <option value={90}>Last 90 days</option>
+            </select>
+          </div>
+          
+          {wasteLoading ? (
+            <LoadingSpinner text="Loading waste report..." />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{wasteReport.summary.totalWastedItems}</div>
+                <div className="text-sm text-gray-700">Items Wasted</div>
+              </div>
+              <div className="text-center p-4 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">${wasteReport.summary.totalWastedValue.toFixed(2)}</div>
+                <div className="text-sm text-gray-700">Value Wasted</div>
+              </div>
+              <div className="text-center p-4 bg-amber-50 rounded-lg">
+                <div className="text-2xl font-bold text-amber-600">{wasteReport.summary.averageDaysExpired.toFixed(1)}</div>
+                <div className="text-sm text-gray-700">Avg Days Expired</div>
+              </div>
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{Object.keys(wasteReport.summary.categoryBreakdown).length}</div>
+                <div className="text-sm text-gray-700">Categories Affected</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {user?.subscriptionPlan === 'free' && (
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-6">

@@ -1,21 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Clock, Users, ChefHat, Search, Filter, Star, Sparkles, ArrowRight } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { Recipe } from '../../types';
+import { recipesAPI } from '../../lib/api';
+import { LoadingSpinner } from '../common/LoadingSpinner';
+import { ErrorMessage } from '../common/ErrorMessage';
+import { useApi } from '../../hooks/useApi';
 
 export const RecipeList: React.FC = () => {
-  const { recipes, getRecipeRecommendations, foodItems } = useApp();
+  const { foodItems } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [showRecommendations, setShowRecommendations] = useState(true);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   
-  const recommendations = getRecipeRecommendations();
+  const {
+    data: recipes,
+    isLoading: recipesLoading,
+    error: recipesError,
+    execute: fetchRecipes
+  } = useApi<Recipe[]>(recipesAPI.getAll);
+
+  const {
+    data: recommendations,
+    isLoading: recommendationsLoading,
+    error: recommendationsError,
+    execute: fetchRecommendations
+  } = useApi<Recipe[]>(recipesAPI.getRecommendations);
+
+  useEffect(() => {
+    fetchRecipes();
+    fetchRecommendations();
+  }, []);
+
   const availableIngredients = foodItems
     .filter(item => !item.isConsumed && item.quantity > 0)
     .map(item => item.name.toLowerCase());
 
-  const filteredRecipes = (showRecommendations ? recommendations : recipes).filter(recipe => {
+  const displayedRecipes = showRecommendations ? (recommendations || []) : (recipes || []);
+  
+  const filteredRecipes = displayedRecipes.filter(recipe => {
     const matchesSearch = recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          recipe.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'all' || recipe.category === filterCategory;
@@ -32,6 +56,14 @@ export const RecipeList: React.FC = () => {
   };
 
   const categories = ['all', 'breakfast', 'lunch', 'dinner', 'snack', 'dessert'];
+
+  const isLoading = showRecommendations ? recommendationsLoading : recipesLoading;
+  const error = showRecommendations ? recommendationsError : recipesError;
+
+  const handleRefresh = () => {
+    fetchRecipes();
+    fetchRecommendations();
+  };
 
   const RecipeModal = ({ recipe, onClose }: { recipe: Recipe; onClose: () => void }) => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -142,6 +174,22 @@ export const RecipeList: React.FC = () => {
     </div>
   );
 
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <LoadingSpinner size="lg" text="Loading recipes..." className="py-16" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <ErrorMessage message={error} onRetry={handleRefresh} />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -167,7 +215,7 @@ export const RecipeList: React.FC = () => {
       </div>
 
       {/* Smart Recommendations Banner */}
-      {showRecommendations && recommendations.length > 0 && (
+      {showRecommendations && recommendations && recommendations.length > 0 && (
         <div className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl border border-emerald-200 p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -246,7 +294,8 @@ export const RecipeList: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredRecipes.map((recipe) => {
             const matchingIngredients = getMatchingIngredients(recipe);
-            const matchPercentage = (matchingIngredients.length / recipe.ingredients.length) * 100;
+            const matchPercentage = recipe.matchScore ? recipe.matchScore * 100 : 
+              (matchingIngredients.length / recipe.ingredients.length) * 100;
             
             return (
               <div key={recipe.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2">
@@ -357,7 +406,7 @@ export const RecipeList: React.FC = () => {
       )}
 
       {/* Tips for better recommendations */}
-      {availableIngredients.length > 0 && recommendations.length === 0 && (
+      {availableIngredients.length > 0 && showRecommendations && (!recommendations || recommendations.length === 0) && (
         <div className="bg-blue-50 rounded-xl border border-blue-200 p-6">
           <div className="flex items-start">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">

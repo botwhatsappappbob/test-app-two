@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   Filter, 
@@ -16,18 +16,29 @@ import {
 import { useApp } from '../../contexts/AppContext';
 import { FoodItem, FoodCategory, StorageLocation } from '../../types';
 import { format, differenceInDays } from 'date-fns';
+import { LoadingSpinner } from '../common/LoadingSpinner';
+import { ErrorMessage } from '../common/ErrorMessage';
 
 interface InventoryListProps {
   onAddItem: () => void;
 }
 
 export const InventoryList: React.FC<InventoryListProps> = ({ onAddItem }) => {
-  const { foodItems, deleteFoodItem, consumeFoodItem } = useApp();
+  const { 
+    foodItems, 
+    deleteFoodItem, 
+    consumeFoodItem, 
+    isLoading, 
+    error, 
+    refreshData 
+  } = useApp();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<FoodCategory | 'all'>('all');
   const [filterLocation, setFilterLocation] = useState<StorageLocation | 'all'>('all');
   const [showConsumed, setShowConsumed] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'expiration' | 'category' | 'added'>('expiration');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const filteredItems = foodItems.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -80,8 +91,28 @@ export const InventoryList: React.FC<InventoryListProps> = ({ onAddItem }) => {
     return `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
   };
 
-  const handleConsume = (item: FoodItem) => {
-    consumeFoodItem(item.id, item.quantity);
+  const handleConsume = async (item: FoodItem) => {
+    setActionLoading(item.id);
+    try {
+      await consumeFoodItem(item.id, item.quantity);
+    } catch (error) {
+      console.error('Error consuming item:', error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDelete = async (itemId: string) => {
+    if (!confirm('Are you sure you want to delete this item?')) return;
+    
+    setActionLoading(itemId);
+    try {
+      await deleteFoodItem(itemId);
+    } catch (error) {
+      console.error('Error deleting item:', error);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const categories: (FoodCategory | 'all')[] = ['all', 'vegetables', 'fruits', 'meats', 'dairy', 'grains', 'canned', 'frozen', 'snacks', 'beverages', 'other'];
@@ -94,6 +125,22 @@ export const InventoryList: React.FC<InventoryListProps> = ({ onAddItem }) => {
     return daysLeft <= 7 && daysLeft >= 0;
   });
   const totalValue = activeItems.reduce((sum, item) => sum + (item.cost || 0), 0);
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <LoadingSpinner size="lg" text="Loading inventory..." className="py-16" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <ErrorMessage message={error} onRetry={refreshData} />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -248,6 +295,7 @@ export const InventoryList: React.FC<InventoryListProps> = ({ onAddItem }) => {
             const status = getExpirationStatus(item);
             const statusColor = getStatusColor(status);
             const daysLeft = differenceInDays(item.expirationDate, new Date());
+            const isActionLoading = actionLoading === item.id;
             
             return (
               <div key={item.id} className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
@@ -260,18 +308,28 @@ export const InventoryList: React.FC<InventoryListProps> = ({ onAddItem }) => {
                     {!item.isConsumed && (
                       <button
                         onClick={() => handleConsume(item)}
-                        className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-200"
+                        disabled={isActionLoading}
+                        className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-200 disabled:opacity-50"
                         title="Mark as consumed"
                       >
-                        <Check className="h-4 w-4" />
+                        {isActionLoading ? (
+                          <LoadingSpinner size="sm" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
                       </button>
                     )}
                     <button
-                      onClick={() => deleteFoodItem(item.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                      onClick={() => handleDelete(item.id)}
+                      disabled={isActionLoading}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 disabled:opacity-50"
                       title="Delete item"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {isActionLoading ? (
+                        <LoadingSpinner size="sm" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -334,7 +392,7 @@ export const InventoryList: React.FC<InventoryListProps> = ({ onAddItem }) => {
         </div>
       )}
 
-      {/* Bulk Actions (if items selected) */}
+      {/* Summary */}
       {filteredItems.length > 0 && (
         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
           <div className="flex items-center justify-between">

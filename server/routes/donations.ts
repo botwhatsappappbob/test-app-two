@@ -1,8 +1,8 @@
 import express from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { db } from '../config/database.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { validateDonation } from '../middleware/validation.js';
+import { uuidv4 } from '../utils/uuid.js';
 
 const router = express.Router();
 
@@ -15,7 +15,7 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
       ORDER BY created_at DESC
     `).all(req.user!.id);
 
-    const formattedDonations = donations.map(donation => ({
+    const formattedDonations = donations.map((donation: any) => ({
       ...donation,
       foodItems: JSON.parse(donation.food_items),
       pickupDate: new Date(donation.pickup_date),
@@ -24,7 +24,7 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
       recipientOrganization: donation.recipient_organization
     }));
 
-    res.json(formattedDonations);
+    res.json({ data: formattedDonations });
   } catch (error) {
     console.error('Get donations error:', error);
     res.status(500).json({ error: 'Internal server error' });

@@ -36,7 +36,7 @@ router.get('/', (req, res) => {
 
     const foodBanks = db.prepare(query).all(...params);
 
-    const formattedFoodBanks = foodBanks.map(bank => ({
+    const formattedFoodBanks = foodBanks.map((bank: any) => ({
       ...bank,
       acceptedItems: JSON.parse(bank.accepted_items),
       coordinates: bank.latitude && bank.longitude ? {
@@ -45,7 +45,7 @@ router.get('/', (req, res) => {
       } : undefined
     }));
 
-    res.json(formattedFoodBanks);
+    res.json({ data: formattedFoodBanks });
   } catch (error) {
     console.error('Get food banks error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -77,7 +77,7 @@ router.get('/nearby', (req, res) => {
       ORDER BY distance
     `).all(latitude, longitude, latitude, radiusKm);
 
-    const formattedFoodBanks = foodBanks.map(bank => ({
+    const formattedFoodBanks = foodBanks.map((bank: any) => ({
       ...bank,
       acceptedItems: JSON.parse(bank.accepted_items),
       coordinates: {
@@ -87,7 +87,7 @@ router.get('/nearby', (req, res) => {
       distance: Math.round(bank.distance * 100) / 100 // Round to 2 decimal places
     }));
 
-    res.json(formattedFoodBanks);
+    res.json({ data: formattedFoodBanks });
   } catch (error) {
     console.error('Get nearby food banks error:', error);
     res.status(500).json({ error: 'Internal server error' });
